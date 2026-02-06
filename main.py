@@ -4,6 +4,8 @@ import os
 from dotenv import load_dotenv
 from google import genai
 
+from prompts import system_prompt
+
 parser = argparse.ArgumentParser(description="Chatbot")
 parser.add_argument("user_prompt", type=str, help="User prompt")
 args = parser.parse_args()
@@ -16,7 +18,9 @@ if not api_key:
 client = genai.Client(api_key=api_key)
 
 content = client.models.generate_content(
-    model="gemini-2.5-flash", contents=args.user_prompt
+    model="gemini-2.5-flash",
+    contents=args.user_prompt,
+    config=genai.types.GenerateContentConfig(system_instruction=system_prompt),  # type: ignore
 )
 
 print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")  # type: ignore

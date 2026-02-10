@@ -4,8 +4,9 @@ class Calculator:
             "+": lambda a, b: a + b,
             "-": lambda a, b: a - b,
             "*": lambda a, b: a * b,
-            "/": lambda a, b: a / b,
+            "/": lambda a, b: b / a if a != 0 else "Error: Division by zero", # Added division by zero check
         }
+        # Adjusted precedence to reflect standard mathematical order of operations
         self.precedence = {
             "+": 1,
             "-": 1,
@@ -16,44 +17,68 @@ class Calculator:
     def evaluate(self, expression):
         if not expression or expression.isspace():
             return None
-        tokens = expression.strip().split()
-        return self._evaluate_infix(tokens)
+        tokens = self._tokenize(expression) # Use a more robust tokenizer
+        return self._evaluate_rpn(self._infix_to_rpn(tokens)) # Evaluate using Reverse Polish Notation (RPN)
 
-    def _evaluate_infix(self, tokens):
-        values = []
-        operators = []
+    def _tokenize(self, expression):
+        # Simple tokenizer, can be expanded for more complex expressions (e.g., with parentheses)
+        import re
+        return re.findall(r"(\d+\.?\d*|\+|\-|\*|\/)", expression)
+
+    def _infix_to_rpn(self, tokens):
+        output = []
+        op_stack = []
 
         for token in tokens:
-            if token in self.operators:
+            if token.replace('.', '', 1).isdigit(): # Check if token is a number
+                output.append(token)
+            elif token in self.operators:
                 while (
-                    operators
-                    and operators[-1] in self.operators
-                    and self.precedence[operators[-1]] >= self.precedence[token]
+                    op_stack
+                    and op_stack[-1] in self.operators
+                    and self.precedence.get(op_stack[-1], 0) >= self.precedence.get(token, 0)
                 ):
-                    self._apply_operator(operators, values)
-                operators.append(token)
+                    output.append(op_stack.pop())
+                op_stack.append(token)
+            # Add support for parentheses here if needed in the future
+            # elif token == '(':
+            #     op_stack.append(token)
+            # elif token == ')':
+            #     while op_stack and op_stack[-1] != '(':
+            #         output.append(op_stack.pop())
+            #     if op_stack and op_stack[-1] == '(':
+            #         op_stack.pop() # Discard the opening parenthesis
+
+        while op_stack:
+            output.append(op_stack.pop())
+
+        return output
+
+    def _evaluate_rpn(self, rpn_tokens):
+        value_stack = []
+
+        for token in rpn_tokens:
+            if token.replace('.', '', 1).isdigit(): # Check if token is a number
+                value_stack.append(float(token))
+            elif token in self.operators:
+                if len(value_stack) < 2:
+                    raise ValueError(f"Invalid expression: Not enough operands for operator '{token}'")
+                
+                b = value_stack.pop()
+                a = value_stack.pop()
+
+                # Handle division by zero specifically
+                if token == "/" and b == 0:
+                    return "Error: Division by zero"
+                
+                result = self.operators[token](b, a) # Note the order: b is popped first, then a. So it's a op b
+                value_stack.append(result)
             else:
-                try:
-                    values.append(float(token))
-                except ValueError:
-                    raise ValueError(f"invalid token: {token}")
+                 raise ValueError(f"Invalid token in RPN expression: {token}")
 
-        while operators:
-            self._apply_operator(operators, values)
 
-        if len(values) != 1:
-            raise ValueError("invalid expression")
+        if len(value_stack) != 1:
+            raise ValueError("Invalid expression format")
 
-        return values[0]
+        return value_stack[0]
 
-    def _apply_operator(self, operators, values):
-        if not operators:
-            return
-
-        operator = operators.pop()
-        if len(values) < 2:
-            raise ValueError(f"not enough operands for operator {operator}")
-
-        b = values.pop()
-        a = values.pop()
-        values.append(self.operators[operator](a, b))

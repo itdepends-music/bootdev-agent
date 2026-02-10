@@ -12,6 +12,7 @@ from function_schemas import (
     schema_run_python_file,
     schema_write_file,
 )
+from functions import call_function
 
 parser = argparse.ArgumentParser(description="Chatbot")
 parser.add_argument("user_prompt", type=str, help="User prompt")
@@ -50,5 +51,18 @@ if args.verbose:
 if content.function_calls is None:
     print(content.text)
 else:
+    function_results = []
     for function_call in content.function_calls:
-        print(f"Calling function: {function_call.name}({function_call.args})")
+        function_call_result = call_function(function_call)
+
+        if len(function_call_result.parts) == 0:
+            raise Exception("empty .parts list")
+        function_response = function_call_result.parts[0].function_response
+        if function_call_result.parts[0].function_response is None:
+            raise Exception("function_response is None")
+        if function_call_result.parts[0].function_response.response is None:
+            raise Exception("function_response.response is None")
+        function_results.append(function_call_result.parts[0])
+
+        if args.verbose:
+            print(f"-> {function_call_result.parts[0].function_response.response}")

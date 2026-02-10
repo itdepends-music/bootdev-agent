@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from google import genai
 from google.genai import types
 
+from functions.get_files_info import schema_get_files_info
 from prompts import system_prompt
 
 parser = argparse.ArgumentParser(description="Chatbot")
@@ -19,11 +20,14 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
+available_functions = types.Tool(function_declarations=[schema_get_files_info])
 messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
 content = client.models.generate_content(
     model="gemini-2.5-flash",
     contents=messages,
-    config=types.GenerateContentConfig(system_instruction=system_prompt),
+    config=types.GenerateContentConfig(
+        tools=[available_functions], system_instruction=system_prompt
+    ),
 )
 
 if args.verbose:
@@ -31,4 +35,8 @@ if args.verbose:
     print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")  # type: ignore
     print(f"Response tokens: {content.usage_metadata.candidates_token_count}")  # type: ignore
 
-print(content.text)
+if content.function_calls is None:
+    print(content.text)
+else:
+    for function_call in content.function_calls:
+        print(f"Calling function: {function_call.name}({function_call.args})")

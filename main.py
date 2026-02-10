@@ -34,35 +34,46 @@ available_functions = types.Tool(
         schema_write_file,
     ]
 )
+
 messages = [types.Content(role="user", parts=[types.Part(text=args.user_prompt)])]
-content = client.models.generate_content(
-    model="gemini-2.5-flash",
-    contents=messages,
-    config=types.GenerateContentConfig(
-        tools=[available_functions], system_instruction=SYSTEM_PROMPT
-    ),
-)
+for _ in range(20):
+    content = client.models.generate_content(
+        model="gemini-2.5-flash",
+        contents=messages,
+        config=types.GenerateContentConfig(
+            tools=[available_functions], system_instruction=SYSTEM_PROMPT
+        ),
+    )
 
-if args.verbose:
-    print(f"User prompt: {args.user_prompt}")
-    print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")  # type: ignore
-    print(f"Response tokens: {content.usage_metadata.candidates_token_count}")  # type: ignore
+    if args.verbose:
+        print(f"User prompt: {args.user_prompt}")
+        print(f"Prompt tokens: {content.usage_metadata.prompt_token_count}")  # type: ignore
+        print(f"Response tokens: {content.usage_metadata.candidates_token_count}")  # type: ignore
 
-if content.function_calls is None:
-    print(content.text)
-else:
-    function_results = []
-    for function_call in content.function_calls:
-        function_call_result = call_function(function_call)
+    if content.candidates is not None:
+        for candidate in content.candidates:
+            messages.append(candidate.content)
 
-        if len(function_call_result.parts) == 0:
-            raise Exception("empty .parts list")
-        function_response = function_call_result.parts[0].function_response
-        if function_call_result.parts[0].function_response is None:
-            raise Exception("function_response is None")
-        if function_call_result.parts[0].function_response.response is None:
-            raise Exception("function_response.response is None")
-        function_results.append(function_call_result.parts[0])
+    if content.function_calls is None:
+        print(content.text)
+        exit(0)
+    else:
+        function_results = []
+        for function_call in content.function_calls:
+            function_call_result = call_function(function_call)
 
-        if args.verbose:
-            print(f"-> {function_call_result.parts[0].function_response.response}")
+            if len(function_call_result.parts) == 0:
+                raise Exception("empty .parts list")
+            function_response = function_call_result.parts[0].function_response
+            if function_call_result.parts[0].function_response is None:
+                raise Exception("function_response is None")
+            if function_call_result.parts[0].function_response.response is None:
+                raise Exception("function_response.response is None")
+            function_results.append(function_call_result.parts[0])
+
+            if args.verbose:
+                print(f"-> {function_call_result.parts[0].function_response.response}")
+
+        messages.append(types.Content(role="user", parts=function_results))
+
+exit(1)  # reached maximum number of iterations
